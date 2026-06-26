@@ -143,7 +143,7 @@ export interface Reservation {
   time: string;
   tableId?: string;
   notes?: string;
-  status: "confirmed" | "seated" | "cancelled" | "no-show";
+  status: "confirmed" | "seated" | "completed" | "cancelled" | "no-show";
 }
 
 export interface RevenuePoint {

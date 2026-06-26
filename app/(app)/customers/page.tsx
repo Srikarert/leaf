@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Award, Mail, Search, Users } from "lucide-react";
+import { Award, Mail, Phone, Search, Star, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,9 +23,9 @@ export default function CustomersPage() {
     )
     .sort((a, b) => b.totalSpent - a.totalSpent);
 
-  const topSpender = customers.length > 0 ? customers[0] : null;
+  const topSpender = customers[0];
   const totalRevenue = customers.reduce((s, c) => s + c.totalSpent, 0);
-  const repeatRate = customers.length > 0
+  const repeatRate = customers.length
     ? (customers.filter((c) => c.visits > 1).length / customers.length) * 100
     : 0;
 
@@ -65,7 +65,7 @@ export default function CustomersPage() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Top spender</p>
-            <p className="truncate text-lg font-semibold">{topSpender ? topSpender.name : "-"}</p>
+            <p className="truncate text-lg font-semibold">{topSpender ? topSpender.name : "—"}</p>
           </CardContent>
         </Card>
       </div>
@@ -83,15 +83,16 @@ export default function CustomersPage() {
       <Card>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold">No customers yet</h3>
-              <p className="text-sm text-muted-foreground">Customers will appear here as they place orders</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Users className="h-10 w-10 text-muted-foreground/40" />
+              <p className="mt-3 text-sm font-medium">No customers found</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {query ? "Try clearing your search" : "Start taking orders to add customers"}
+              </p>
             </div>
           ) : (
             <div className="divide-y">
               {filtered.map((c, i) => {
-                const favs = c.favoriteItems.map((id) => menuItems.find((m) => m.id === id)?.name).filter(Boolean);
                 const tier =
                   c.totalSpent > 2000 ? "VIP" : c.totalSpent > 1000 ? "Gold" : c.totalSpent > 500 ? "Silver" : "Standard";
                 return (

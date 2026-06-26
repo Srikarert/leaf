@@ -1,5 +1,5 @@
-export function formatCurrency(value: number, currency = "INR"): string {
-  return new Intl.NumberFormat("en-IN", {
+export function formatCurrency(value: number, currency = "USD"): string {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,

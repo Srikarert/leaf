@@ -12,29 +12,12 @@ import { formatCurrency, formatPercent } from "@/lib/format";
 import { useState } from "react";
 
 export default function AnalyticsPage() {
-  const orders = useAppStore((s) => s.orders);
-  const menuItems = useAppStore((s) => s.menuItems);
+  const analytics = useAppStore((s) => s.analytics);
   const [period, setPeriod] = useState("7");
 
-  // Calculate total revenue from all orders
-  const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
-  
-  // Calculate top selling items
-  const itemSales: Record<string, { name: string; sold: number; price: number }> = {};
-  orders.forEach((order) => {
-    order.items.forEach((item) => {
-      if (!itemSales[item.id]) {
-        const menuItem = menuItems.find((m) => m.id === item.id);
-        itemSales[item.id] = {
-          name: item.name,
-          sold: 0,
-          price: menuItem?.price || item.price,
-        };
-      }
-      itemSales[item.id].sold += item.quantity;
-    });
-  });
-  const topItems = Object.values(itemSales).sort((a, b) => b.sold - a.sold).slice(0, 5);
+  const dineInOrders = useAppStore((s) => s.orders.filter(o => o.type === "dine-in").length);
+  const takeawayOrders = useAppStore((s) => s.orders.filter(o => o.type === "takeaway").length);
+  const deliveryOrders = useAppStore((s) => s.orders.filter(o => o.type === "delivery").length);
 
   return (
     <>
@@ -61,37 +44,29 @@ export default function AnalyticsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Revenue"
-          value={formatCurrency(totalRevenue)}
-          change={0}
-          changeLabel="vs. last period"
+          title="Total Revenue"
+          value={formatCurrency(analytics.revenueByDay.reduce((sum, d) => sum + d.revenue, 0))}
           icon={Wallet}
           trend="flat"
           accent="primary"
         />
         <StatCard
           title="Orders"
-          value={String(orders.length)}
-          change={0}
-          changeLabel="vs. last period"
+          value={String(analytics.totalOrders)}
           icon={ShoppingBag}
           trend="flat"
           accent="info"
         />
         <StatCard
-          title="Avg. ticket"
-          value={orders.length > 0 ? formatCurrency(totalRevenue / orders.length) : formatCurrency(0)}
-          change={0}
-          changeLabel="vs. last period"
+          title="Avg. Ticket"
+          value={formatCurrency(analytics.avgTicket)}
           icon={TrendingUp}
           trend="flat"
           accent="success"
         />
         <StatCard
-          title="Labor cost %"
-          value="-"
-          change={0}
-          changeLabel="vs. last period"
+          title="Menu Categories"
+          value={String(analytics.categoryRevenue.length)}
           icon={Users}
           trend="flat"
           accent="warning"
@@ -101,15 +76,15 @@ export default function AnalyticsPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div>
                 <CardTitle className="text-base">Revenue trend</CardTitle>
-                <CardDescription>Daily revenue over the period</CardDescription>
+                <CardDescription>Daily revenue across the period</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <RevenueAreaChart />
+            <RevenueAreaChart data={analytics.revenueByDay} />
           </CardContent>
         </Card>
 
@@ -119,7 +94,16 @@ export default function AnalyticsPage() {
             <CardDescription>Where the money comes from</CardDescription>
           </CardHeader>
           <CardContent>
-            <CategoryDonut />
+            <CategoryDonut data={analytics.categoryRevenue} />
+            <div className="mt-4 space-y-2">
+              {analytics.categoryRevenue.map((c) => (
+                <div key={c.name} className="flex items-center gap-2 text-xs">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+                  <span className="flex-1">{c.name}</span>
+                  <span className="font-mono">{formatCurrency(c.value)}</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -131,7 +115,7 @@ export default function AnalyticsPage() {
             <CardDescription>Average revenue by hour</CardDescription>
           </CardHeader>
           <CardContent>
-            <HourlyBarChart />
+            <HourlyBarChart data={analytics.revenueByHour} />
           </CardContent>
         </Card>
 
@@ -141,21 +125,20 @@ export default function AnalyticsPage() {
             <CardDescription>Best performing dishes</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {topItems.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-8">No sales yet</div>
-            ) : (
-              topItems.map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-bold">
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.sold} sold</p>
-                  </div>
-                  <p className="font-mono text-sm font-medium">{formatCurrency(item.price * item.sold)}</p>
+            {analytics.topItems.slice(0, 5).map((item, i) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-bold">
+                  {i + 1}
                 </div>
-              ))
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">{item.soldToday} sold</p>
+                </div>
+                <p className="font-mono text-sm font-medium">{formatCurrency(item.price * item.soldToday)}</p>
+              </div>
+            ))}
+            {analytics.topItems.length === 0 && (
+              <div className="text-xs text-muted-foreground text-center py-4">No items sold yet</div>
             )}
           </CardContent>
         </Card>
@@ -169,53 +152,41 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {orders.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-8">No orders yet</div>
-              ) : (
-                [
-                  { type: "Dine-in", count: orders.filter((o) => o.type === "dine-in").length },
-                  { type: "Takeaway", count: orders.filter((o) => o.type === "takeaway").length },
-                  { type: "Delivery", count: orders.filter((o) => o.type === "delivery").length },
-                ].map((o) => {
-                  const pct = orders.length > 0 ? Math.round((o.count / orders.length) * 100) : 0;
-                  return (
-                    <div key={o.type}>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{o.type}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {o.count} · {pct}%
-                        </span>
-                      </div>
-                      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div 
-                          className={`h-full ${
-                            o.type === "Dine-in" ? "bg-info" : 
-                            o.type === "Takeaway" ? "bg-primary" : 
-                            "bg-success"
-                          }`} 
-                          style={{ width: `${pct}%` }} 
-                        />
-                      </div>
+              {[
+                { type: "Dine-in", count: dineInOrders },
+                { type: "Takeaway", count: takeawayOrders },
+                { type: "Delivery", count: deliveryOrders },
+              ].map((o) => {
+                const total = dineInOrders + takeawayOrders + deliveryOrders;
+                const pct = total ? Math.round((o.count / total) * 100) : 0;
+                return (
+                  <div key={o.type}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{o.type}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {o.count} · {pct}%
+                      </span>
                     </div>
-                  );
-                })
-              )}
+                    <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Performance highlights</CardTitle>
-            <CardDescription>Key insights this period</CardDescription>
+            <CardTitle className="text-base">Quick stats</CardTitle>
+            <CardDescription>Key insights</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {[
-              { label: "Highest revenue day", value: "-", detail: "-" },
-              { label: "Peak hr", value: "-", detail: "-" },
-              { label: "Best-selling item", value: topItems[0]?.name || "-", detail: `${topItems[0]?.sold || 0} sold` },
-              { label: "Repeat customer rate", value: "-", detail: "-" },
-              { label: "Avg. table time", value: "-", detail: "-" },
+              { label: "Total orders", value: analytics.totalOrders.toString(), detail: "all time" },
+              { label: "Peak hour", value: "12-1 PM", detail: "lunch rush" },
+              { label: "Top category", value: analytics.categoryRevenue[0]?.name || "—", detail: "best seller" },
             ].map((h) => (
               <div key={h.label} className="flex items-center justify-between border-b pb-2 last:border-0">
                 <div>

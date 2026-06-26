@@ -85,11 +85,6 @@ export default function OrdersPage() {
       <PageHeader
         title="Live orders"
         description="Manage every order from kitchen to table."
-        actions={
-          <Button>
-            <Plus className="h-4 w-4" /> New order
-          </Button>
-        }
       />
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

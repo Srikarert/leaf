@@ -10,7 +10,6 @@ import {
   Flame,
   ShoppingBag,
   TrendingUp,
-  Truck,
   Users,
   UtensilsCrossed,
   Wallet,
@@ -33,7 +32,7 @@ export default function DashboardPage() {
   const staff = useAppStore((s) => s.staff);
   const ingredients = useAppStore((s) => s.ingredients);
   const activity = useAppStore((s) => s.activity);
-  const menuItems = useAppStore((s) => s.menuItems);
+  const analytics = useAppStore((s) => s.analytics);
 
   const [clock, setClock] = useState("");
 
@@ -47,35 +46,12 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Calculate today's revenue
-  const today = new Date().toDateString();
-  const todayOrders = orders.filter((o) => new Date(o.createdAt).toDateString() === today);
-  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
-  
   const activeOrders = orders.filter((o) => o.status === "pending" || o.status === "preparing").length;
   const occupiedTables = tables.filter((t) => t.status === "occupied" || t.status === "billing").length;
-  const activeStaff = staff.filter((s) => s.status === "active").length;
+  const activeStaffCount = staff.filter((s) => s.status === "active").length;
   const lowStock = ingredients.filter((i) => i.stock <= i.reorderLevel).length;
-
-  const recentOrders = orders.slice(0, 6);
   const lowStockItems = ingredients.filter((i) => i.stock <= i.reorderLevel).slice(0, 4);
-
-  // Calculate top selling items
-  const itemSales: Record<string, { name: string; sold: number; price: number }> = {};
-  orders.forEach((order) => {
-    order.items.forEach((item) => {
-      if (!itemSales[item.id]) {
-        const menuItem = menuItems.find((m) => m.id === item.id);
-        itemSales[item.id] = {
-          name: item.name,
-          sold: 0,
-          price: menuItem?.price || item.price,
-        };
-      }
-      itemSales[item.id].sold += item.quantity;
-    });
-  });
-  const topItems = Object.values(itemSales).sort((a, b) => b.sold - a.sold).slice(0, 5);
+  const recentOrders = orders.slice(0, 6);
 
   return (
     <>
@@ -103,18 +79,15 @@ export default function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Revenue today"
-          value={formatCurrency(todayRevenue)}
-          change={0}
-          changeLabel="vs. yesterday"
+          value={formatCurrency(analytics.todayRevenue)}
           icon={CircleDollarSign}
-          trend={todayRevenue > 0 ? "up" : "flat"}
+          trend="flat"
           accent="primary"
         />
         <StatCard
           title="Active orders"
           value={String(activeOrders)}
-          change={0}
-          changeLabel="new this hour"
+          changeLabel="live"
           icon={ShoppingBag}
           trend="flat"
           accent="info"
@@ -122,17 +95,15 @@ export default function DashboardPage() {
         <StatCard
           title="Tables occupied"
           value={`${occupiedTables}/${tables.length}`}
-          changeLabel={`${tables.length > 0 ? Math.round((occupiedTables / tables.length) * 100) : 0}% capacity`}
+          changeLabel={`${tables.length ? Math.round((occupiedTables / tables.length) * 100) : 0}% capacity`}
           icon={UtensilsCrossed}
           trend="flat"
           accent="warning"
         />
         <StatCard
-          title="Avg. prep time"
-          value="-"
-          change={0}
-          changeLabel="faster this week"
-          icon={Clock}
+          title="Staff on shift"
+          value={`${activeStaffCount}/${staff.length}`}
+          icon={Users}
           trend="flat"
           accent="success"
         />
@@ -149,17 +120,26 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <RevenueAreaChart />
+            <RevenueAreaChart data={analytics.revenueByDay} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Revenue by category</CardTitle>
-            <CardDescription>This week</CardDescription>
+            <CardDescription>From current menu items</CardDescription>
           </CardHeader>
           <CardContent>
-            <CategoryDonut />
+            <CategoryDonut data={analytics.categoryRevenue} />
+            <div className="mt-4 space-y-2">
+              {analytics.categoryRevenue.slice(0, 4).map((c) => (
+                <div key={c.name} className="flex items-center gap-2 text-xs">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
+                  <span className="flex-1">{c.name}</span>
+                  <span className="font-mono text-muted-foreground">{formatCurrency(c.value)}</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -179,10 +159,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {recentOrders.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <ShoppingBag className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold">No orders yet</h3>
-                <p className="text-sm text-muted-foreground">Orders will appear here as they are placed</p>
+              <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                No orders yet
               </div>
             ) : (
               recentOrders.map((o) => {
@@ -228,28 +206,27 @@ export default function DashboardPage() {
           <CardContent>
             <div className="relative space-y-4 pl-4">
               <span className="absolute left-[5px] top-1 bottom-1 w-px bg-border" />
-              {activity.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-8">No recent activity</div>
-              ) : (
-                activity.slice(0, 7).map((a) => (
-                  <div key={a.id} className="relative">
-                    <span
-                      className={`absolute -left-[14px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background ${
-                        a.type === "order"
-                          ? "bg-primary"
-                          : a.type === "table"
+              {activity.slice(0, 7).map((a) => (
+                <div key={a.id} className="relative">
+                  <span
+                    className={`absolute -left-[14px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background ${
+                      a.type === "order"
+                        ? "bg-primary"
+                        : a.type === "table"
                           ? "bg-info"
                           : a.type === "inventory"
-                          ? "bg-warning"
-                          : a.type === "staff"
-                          ? "bg-success"
-                          : "bg-muted-foreground"
-                      }`}
-                    />
-                    <p className="text-xs">{a.message}</p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">{timeAgo(a.timestamp)}</p>
-                  </div>
-                ))
+                            ? "bg-warning"
+                            : a.type === "staff"
+                              ? "bg-success"
+                              : "bg-muted-foreground"
+                    }`}
+                  />
+                  <p className="text-xs">{a.message}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{timeAgo(a.timestamp)}</p>
+                </div>
+              ))}
+              {activity.length === 0 && (
+                <div className="text-xs text-muted-foreground">No recent activity</div>
               )}
             </div>
           </CardContent>
@@ -271,10 +248,10 @@ export default function DashboardPage() {
                     t.status === "occupied"
                       ? "border-info/40 bg-info/5"
                       : t.status === "billing"
-                      ? "border-warning/40 bg-warning/5"
-                      : t.status === "reserved"
-                      ? "border-primary/40 bg-primary/5"
-                      : "border-border"
+                        ? "border-warning/40 bg-warning/5"
+                        : t.status === "reserved"
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border"
                   }`}
                 >
                   <span className="font-mono font-semibold">{t.number}</span>
@@ -293,7 +270,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Kitchen load</CardTitle>
-            <CardDescription>Active tickets and prep time</CardDescription>
+            <CardDescription>Active tickets</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -306,9 +283,9 @@ export default function DashboardPage() {
             <Separator />
             <div className="grid grid-cols-3 gap-3 text-center">
               {[
-                { label: "Avg prep", value: "-", icon: Clock, color: "text-info" },
-                { label: "Peak hr", value: "-", icon: Flame, color: "text-warning" },
-                { label: "On time", value: "-", icon: TrendingUp, color: "text-success" },
+                { label: "Pending", value: orders.filter(o => o.status === "pending").length, icon: Clock, color: "text-warning" },
+                { label: "Preparing", value: orders.filter(o => o.status === "preparing").length, icon: Flame, color: "text-orange-500" },
+                { label: "Ready", value: orders.filter(o => o.status === "ready").length, icon: TrendingUp, color: "text-success" },
               ].map((m) => (
                 <div key={m.label}>
                   <m.icon className={`mx-auto h-4 w-4 ${m.color}`} />
@@ -331,30 +308,29 @@ export default function DashboardPage() {
             <CardDescription>{lowStock} item{lowStock === 1 ? "" : "s"} at or below reorder level</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {lowStockItems.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-8">All ingredients are well stocked!</div>
-            ) : (
-              lowStockItems.map((i) => {
-                const pct = Math.min((i.stock / i.par) * 100, 100);
-                const low = i.stock <= i.reorderLevel;
-                return (
-                  <div key={i.id}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium">{i.name}</span>
-                      <span className={`font-mono ${low ? "text-destructive" : "text-warning"}`}>
-                        {i.stock.toFixed(i.stock < 10 ? 1 : 0)}
-                        {i.unit} / {i.par}
-                        {i.unit}
-                      </span>
-                    </div>
-                    <Progress
-                      value={pct}
-                      className="mt-1.5 h-1"
-                      indicatorClassName={low ? "bg-destructive" : "bg-warning"}
-                    />
+            {lowStockItems.map((i) => {
+              const pct = Math.min((i.stock / i.par) * 100, 100);
+              const isLow = i.stock <= i.reorderLevel;
+              return (
+                <div key={i.id}>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium">{i.name}</span>
+                    <span className={`font-mono ${isLow ? "text-destructive" : "text-warning"}`}>
+                      {i.stock.toFixed(i.stock < 10 ? 1 : 0)}
+                      {i.unit} / {i.par}
+                      {i.unit}
+                    </span>
                   </div>
-                );
-              })
+                  <Progress
+                    value={pct}
+                    className="mt-1.5 h-1"
+                    indicatorClassName={isLow ? "bg-destructive" : "bg-warning"}
+                  />
+                </div>
+              );
+            })}
+            {lowStock === 0 && (
+              <div className="text-xs text-muted-foreground text-center py-4">All stock levels good</div>
             )}
             <Button asChild variant="outline" className="mt-2 w-full">
               <Link href="/inventory">
@@ -372,29 +348,28 @@ export default function DashboardPage() {
             <CardDescription>Best performers of the day</CardDescription>
           </CardHeader>
           <CardContent>
-            {topItems.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-8">No sales yet</div>
-            ) : (
-              <div className="space-y-3">
-                {topItems.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="w-5 text-sm font-semibold text-muted-foreground">#{i + 1}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{item.name}</span>
-                        <span className="font-mono tabular-nums text-muted-foreground">
-                          {item.sold} sold
-                        </span>
-                      </div>
-                      <Progress 
-                        value={topItems[0] ? (item.sold / topItems[0].sold) * 100 : 0} 
-                        className="mt-1.5 h-1" 
-                      />
+            <div className="space-y-3">
+              {analytics.topItems.slice(0, 5).map((item, i) => (
+                <div key={item.id} className="flex items-center gap-3">
+                  <span className="w-5 text-sm font-semibold text-muted-foreground">#{i + 1}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{item.name}</span>
+                      <span className="font-mono tabular-nums text-muted-foreground">
+                        {item.soldToday} sold
+                      </span>
                     </div>
+                    <Progress
+                      value={analytics.topItems[0] ? (item.soldToday / analytics.topItems[0].soldToday) * 100 : 0}
+                      className="mt-1.5 h-1"
+                    />
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+              {analytics.topItems.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center py-4">No items sold yet today</div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -402,7 +377,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-base">Team on shift</CardTitle>
             <CardDescription>
-              {activeStaff} of {staff.length} active
+              {activeStaffCount} of {staff.length} active
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -418,13 +393,11 @@ export default function DashboardPage() {
                 <StaffStatusBadge status={s.status} />
               </div>
             ))}
-            {staff.length > 0 && (
-              <Button asChild variant="outline" className="mt-2 w-full">
-                <Link href="/staff">
-                  View all <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            )}
+            <Button asChild variant="outline" className="mt-2 w-full">
+              <Link href="/staff">
+                View all <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

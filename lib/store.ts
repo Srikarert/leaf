@@ -4,15 +4,14 @@ import { create } from "zustand";
 import { db } from "./firebase";
 import {
   collection,
-  getDocs,
   doc,
   setDoc,
   updateDoc,
-  addDoc,
   deleteDoc,
-  onSnapshot,
   query,
   orderBy,
+  onSnapshot,
+  Unsubscribe,
 } from "firebase/firestore";
 import type {
   Activity,
@@ -40,6 +39,16 @@ export interface User {
   restaurant: string;
 }
 
+interface AnalyticsData {
+  revenueByDay: RevenuePoint[];
+  revenueByHour: { hour: string; revenue: number }[];
+  categoryRevenue: { name: string; value: number; color: string }[];
+  topItems: (MenuItem & { soldToday: number; soldWeek: number })[];
+  todayRevenue: number;
+  totalOrders: number;
+  avgTicket: number;
+}
+
 interface AppState {
   hydrated: boolean;
   user: User;
@@ -54,6 +63,8 @@ interface AppState {
   activity: Activity[];
   reservations: Reservation[];
   revenueByDay: RevenuePoint[];
+  analytics: AnalyticsData;
+  unsubscribes: Record<string, Unsubscribe | null>;
 
   setHydrated: () => void;
   loadDataFromFirebase: () => Promise<void>;
@@ -80,9 +91,21 @@ interface AppState {
   addIngredient: (i: Omit<Ingredient, "id">) => void;
   addStaff: (s: Omit<Staff, "id">) => void;
   removeStaff: (id: string) => void;
+  calculateAnalytics: () => void;
+  cleanupListeners: () => void;
 }
 
 const ORDER_FLOW: OrderStatus[] = ["pending", "preparing", "ready", "served", "completed"];
+
+const initialAnalytics: AnalyticsData = {
+  revenueByDay: [],
+  revenueByHour: [],
+  categoryRevenue: [],
+  topItems: [],
+  todayRevenue: 0,
+  totalOrders: 0,
+  avgTicket: 0,
+};
 
 export const useAppStore = create<AppState>((set, get) => ({
   hydrated: false,
@@ -104,46 +127,237 @@ export const useAppStore = create<AppState>((set, get) => ({
   activity: [],
   reservations: [],
   revenueByDay: [],
+  analytics: initialAnalytics,
+  unsubscribes: {
+    categories: null,
+    menuItems: null,
+    tables: null,
+    staff: null,
+    orders: null,
+    ingredients: null,
+    reservations: null,
+    customers: null,
+    activity: null,
+    deliveries: null,
+  },
 
   setHydrated: () => set({ hydrated: true }),
+
+  cleanupListeners: () => {
+    const { unsubscribes } = get();
+    Object.values(unsubscribes).forEach((unsubscribe) => {
+      if (unsubscribe) unsubscribe();
+    });
+  },
+
+  calculateAnalytics: () => {
+    const { orders, menuItems, categories } = get();
+
+    // Calculate today's revenue
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayRevenue = orders
+      .filter((o) => new Date(o.createdAt) >= today)
+      .reduce((sum, o) => sum + o.total, 0);
+
+    // Calculate revenue by day (last 7 days)
+    const revenueByDay: RevenuePoint[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dayStart = new Date(date);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+      const dayOrders = orders.filter(
+        (o) => new Date(o.createdAt) >= dayStart && new Date(o.createdAt) <= dayEnd
+      );
+      revenueByDay.push({
+        date: date.toLocaleDateString("en-US", { weekday: "short" }),
+        revenue: dayOrders.reduce((sum, o) => sum + o.total, 0),
+        orders: dayOrders.length,
+        avgTicket: dayOrders.length
+          ? dayOrders.reduce((sum, o) => sum + o.total, 0) / dayOrders.length
+          : 0,
+      });
+    }
+
+    // Calculate revenue by hour (11 AM - 10 PM)
+    const revenueByHour = [];
+    for (let hour = 11; hour <= 22; hour++) {
+      const hourStart = new Date(today);
+      hourStart.setHours(hour, 0, 0, 0);
+      const hourEnd = new Date(today);
+      hourEnd.setHours(hour, 59, 59, 999);
+      const hourOrders = orders.filter(
+        (o) => new Date(o.createdAt) >= hourStart && new Date(o.createdAt) <= hourEnd
+      );
+      revenueByHour.push({
+        hour: hour.toString(),
+        revenue: hourOrders.reduce((sum, o) => sum + o.total, 0),
+      });
+    }
+
+    // Calculate category revenue
+    const categoryMap = new Map<string, number>();
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        const menuItem = menuItems.find((m) => m.name === item.name);
+        if (menuItem) {
+          const category = categories.find((c) => c.id === menuItem.categoryId);
+          if (category) {
+            const current = categoryMap.get(category.name) || 0;
+            categoryMap.set(category.name, current + item.price * item.quantity);
+          }
+        }
+      });
+    });
+    const categoryColors = [
+      "hsl(16 90% 53%)",
+      "hsl(217 91% 60%)",
+      "hsl(142 76% 36%)",
+      "hsl(48 96% 53%)",
+      "hsl(262 83% 58%)",
+    ];
+    const categoryRevenue = Array.from(categoryMap.entries())
+      .map(([name, value], i) => ({
+        name,
+        value,
+        color: categoryColors[i % categoryColors.length],
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    // Calculate top items
+    const itemSales = new Map<string, { soldToday: number; soldWeek: number }>();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    orders.forEach((order) => {
+      const orderDate = new Date(order.createdAt);
+      order.items.forEach((item) => {
+        const current = itemSales.get(item.name) || { soldToday: 0, soldWeek: 0 };
+        if (orderDate >= today) {
+          current.soldToday += item.quantity;
+        }
+        if (orderDate >= weekAgo) {
+          current.soldWeek += item.quantity;
+        }
+        itemSales.set(item.name, current);
+      });
+    });
+    const topItems = menuItems
+      .map((item) => {
+        const sales = itemSales.get(item.name) || { soldToday: 0, soldWeek: 0 };
+        return { ...item, soldToday: sales.soldToday, soldWeek: sales.soldWeek };
+      })
+      .sort((a, b) => b.soldToday - a.soldToday)
+      .slice(0, 10);
+
+    const totalOrders = orders.length;
+    const avgTicket = totalOrders
+      ? orders.reduce((sum, o) => sum + o.total, 0) / totalOrders
+      : 0;
+
+    set({
+      analytics: {
+        revenueByDay,
+        revenueByHour,
+        categoryRevenue,
+        topItems,
+        todayRevenue,
+        totalOrders,
+        avgTicket,
+      },
+      revenueByDay,
+    });
+  },
 
   loadDataFromFirebase: async () => {
     try {
       await initializeFirebase();
+      
+      // Clean up existing listeners first
+      get().cleanupListeners();
 
-      // Load data from Firestore
-      const [
-        categoriesSnapshot,
-        menuItemsSnapshot,
-        tablesSnapshot,
-        staffSnapshot,
-        ordersSnapshot,
-        ingredientsSnapshot,
-        reservationsSnapshot,
-      ] = await Promise.all([
-        getDocs(collection(db, "categories")),
-        getDocs(collection(db, "menuItems")),
-        getDocs(collection(db, "tables")),
-        getDocs(collection(db, "staff")),
-        getDocs(query(collection(db, "orders"), orderBy("createdAt", "desc"))),
-        getDocs(collection(db, "ingredients")),
-        getDocs(collection(db, "reservations")),
-      ]);
+      // Real-time listener for categories
+      const unsubCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Category);
+        set({ categories: data });
+      });
+
+      // Real-time listener for menu items
+      const unsubMenuItems = onSnapshot(collection(db, "menuItems"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as MenuItem);
+        set({ menuItems: data });
+      });
+
+      // Real-time listener for tables
+      const unsubTables = onSnapshot(collection(db, "tables"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Table);
+        set({ tables: data });
+      });
+
+      // Real-time listener for staff
+      const unsubStaff = onSnapshot(collection(db, "staff"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Staff);
+        set({ staff: data });
+      });
+
+      // Real-time listener for orders
+      const unsubOrders = onSnapshot(query(collection(db, "orders"), orderBy("createdAt", "desc")), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Order);
+        set({ orders: data });
+        // Recalculate analytics when orders change
+        get().calculateAnalytics();
+      });
+
+      // Real-time listener for ingredients
+      const unsubIngredients = onSnapshot(collection(db, "ingredients"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Ingredient);
+        set({ ingredients: data });
+      });
+
+      // Real-time listener for reservations
+      const unsubReservations = onSnapshot(collection(db, "reservations"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Reservation);
+        set({ reservations: data });
+      });
+
+      // Real-time listener for customers
+      const unsubCustomers = onSnapshot(collection(db, "customers"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Customer);
+        set({ customers: data });
+      });
+
+      // Real-time listener for activity
+      const unsubActivity = onSnapshot(query(collection(db, "activity"), orderBy("timestamp", "desc")), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Activity).slice(0, 50);
+        set({ activity: data });
+      });
+
+      // Real-time listener for deliveries
+      const unsubDeliveries = onSnapshot(collection(db, "deliveries"), (snapshot) => {
+        const data = snapshot.docs.map((doc) => doc.data() as Delivery);
+        set({ deliveries: data });
+      });
 
       set({
-        categories: categoriesSnapshot.docs.map((doc) => doc.data() as Category),
-        menuItems: menuItemsSnapshot.docs.map((doc) => doc.data() as MenuItem),
-        tables: tablesSnapshot.docs.map((doc) => doc.data() as Table),
-        staff: staffSnapshot.docs.map((doc) => doc.data() as Staff),
-        orders: ordersSnapshot.docs.map((doc) => doc.data() as Order),
-        ingredients: ingredientsSnapshot.docs.map((doc) => doc.data() as Ingredient),
-        reservations: reservationsSnapshot.docs.map((doc) => doc.data() as Reservation),
+        unsubscribes: {
+          categories: unsubCategories,
+          menuItems: unsubMenuItems,
+          tables: unsubTables,
+          staff: unsubStaff,
+          orders: unsubOrders,
+          ingredients: unsubIngredients,
+          reservations: unsubReservations,
+          customers: unsubCustomers,
+          activity: unsubActivity,
+          deliveries: unsubDeliveries,
+        },
         hydrated: true,
       });
 
-      console.log("✅ Data loaded from Firebase successfully!");
+      console.log("✅ Real-time listeners set up successfully!");
     } catch (error) {
-      console.error("Error loading data from Firebase:", error);
+      console.error("Error setting up real-time listeners:", error);
     }
   },
 
@@ -166,15 +380,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         items: updatedItems,
         updatedAt: new Date().toISOString(),
       });
-
-      // Update local state
-      set((prev) => ({
-        orders: prev.orders.map((o) =>
-          o.id === orderId
-            ? { ...o, items: updatedItems, updatedAt: new Date().toISOString() }
-            : o
-        ),
-      }));
     } catch (error) {
       console.error("Error updating order item:", error);
     }
@@ -186,12 +391,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         status,
         updatedAt: new Date().toISOString(),
       });
-
-      set((state) => ({
-        orders: state.orders.map((o) =>
-          o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o
-        ),
-      }));
     } catch (error) {
       console.error("Error updating order status:", error);
     }
@@ -200,10 +399,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTableStatus: async (tableId, status) => {
     try {
       await updateDoc(doc(db, "tables", tableId), { status });
-
-      set((state) => ({
-        tables: state.tables.map((t) => (t.id === tableId ? { ...t, status } : t)),
-      }));
     } catch (error) {
       console.error("Error updating table status:", error);
     }
@@ -216,10 +411,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await updateDoc(doc(db, "menuItems", id), { available: !item.available });
-
-      set((state) => ({
-        menuItems: state.menuItems.map((m) => (m.id === id ? { ...m, available: !m.available } : m)),
-      }));
     } catch (error) {
       console.error("Error updating menu item:", error);
     }
@@ -234,10 +425,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await setDoc(doc(db, "activity", newActivity.id), newActivity);
-
-      set((state) => ({
-        activity: [newActivity, ...state.activity].slice(0, 50),
-      }));
     } catch (error) {
       console.error("Error adding activity:", error);
     }
@@ -246,10 +433,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setDeliveryStatus: async (id, status) => {
     try {
       await updateDoc(doc(db, "deliveries", id), { status });
-
-      set((state) => ({
-        deliveries: state.deliveries.map((d) => (d.id === id ? { ...d, status } : d)),
-      }));
     } catch (error) {
       console.error("Error updating delivery:", error);
     }
@@ -265,10 +448,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await updateDoc(doc(db, "staff", id), { status: next });
-
-      set((state) => ({
-        staff: state.staff.map((s) => (s.id === id ? { ...s, status: next } : s)),
-      }));
     } catch (error) {
       console.error("Error updating staff status:", error);
     }
@@ -284,12 +463,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         stock: ingredient.par,
         lastRestocked: new Date().toISOString(),
       });
-
-      set((state) => ({
-        ingredients: state.ingredients.map((i) =>
-          i.id === id ? { ...i, stock: i.par, lastRestocked: new Date().toISOString() } : i
-        ),
-      }));
     } catch (error) {
       console.error("Error reordering ingredient:", error);
     }
@@ -310,7 +483,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       status: "pending",
       tableId,
       serverId: state.user.id,
-      items: items.map((it, idx) => ({ ...it, id: `oi-${Date.now()}-${idx}`, status: "pending" })),
+      items: items.map((it, idx) => ({
+        ...it, id: `oi-${Date.now()}-${idx}`, status: "pending" })),
       subtotal,
       tax,
       tip,
@@ -340,19 +514,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         timestamp: new Date().toISOString(),
       };
       await setDoc(doc(db, "activity", newActivity.id), newActivity);
-
-      set((prev) => ({
-        orders: [newOrder, ...prev.orders],
-        tables:
-          orderType === "dine-in"
-            ? prev.tables.map((t) =>
-                t.id === tableId
-                  ? { ...t, status: "occupied", orderId, occupiedSince: new Date().toISOString() }
-                  : t
-              )
-            : prev.tables,
-        activity: [newActivity, ...prev.activity].slice(0, 50),
-      }));
     } catch (error) {
       console.error("Error adding order:", error);
     }
@@ -368,10 +529,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await setDoc(doc(db, "menuItems", newItem.id), newItem);
-
-      set((state) => ({
-        menuItems: [...state.menuItems, newItem],
-      }));
     } catch (error) {
       console.error("Error adding menu item:", error);
     }
@@ -380,10 +537,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   removeMenuItem: async (id) => {
     try {
       await deleteDoc(doc(db, "menuItems", id));
-
-      set((state) => ({
-        menuItems: state.menuItems.filter((m) => m.id !== id),
-      }));
     } catch (error) {
       console.error("Error removing menu item:", error);
     }
@@ -407,17 +560,6 @@ export const useAppStore = create<AppState>((set, get) => ({
           reservedAt: new Date().toISOString(),
         });
       }
-
-      set((state) => ({
-        reservations: [...state.reservations, newReservation],
-        tables: r.tableId
-          ? state.tables.map((t) =>
-              t.id === r.tableId
-                ? { ...t, status: "reserved", reservedFor: r.customerName, reservedAt: new Date().toISOString() }
-                : t
-            )
-          : state.tables,
-      }));
     } catch (error) {
       console.error("Error adding reservation:", error);
     }
@@ -426,22 +568,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setReservationStatus: async (id, status) => {
     try {
       await updateDoc(doc(db, "reservations", id), { status });
-
-      set((state) => ({
-        reservations: state.reservations.map((r) => (r.id === id ? { ...r, status } : r)),
-      }));
     } catch (error) {
-      console.error("Error updating reservation:", error);
+      console.error("Error updating reservation status:", error);
     }
   },
 
   updateMenuItem: async (id, patch) => {
     try {
       await updateDoc(doc(db, "menuItems", id), patch);
-
-      set((state) => ({
-        menuItems: state.menuItems.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-      }));
     } catch (error) {
       console.error("Error updating menu item:", error);
     }
@@ -450,10 +584,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateIngredient: async (id, patch) => {
     try {
       await updateDoc(doc(db, "ingredients", id), patch);
-
-      set((state) => ({
-        ingredients: state.ingredients.map((i) => (i.id === id ? { ...i, ...patch } : i)),
-      }));
     } catch (error) {
       console.error("Error updating ingredient:", error);
     }
@@ -467,10 +597,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await setDoc(doc(db, "ingredients", newIngredient.id), newIngredient);
-
-      set((state) => ({
-        ingredients: [...state.ingredients, newIngredient],
-      }));
     } catch (error) {
       console.error("Error adding ingredient:", error);
     }
@@ -484,10 +610,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       await setDoc(doc(db, "staff", newStaff.id), newStaff);
-
-      set((state) => ({
-        staff: [...state.staff, newStaff],
-      }));
     } catch (error) {
       console.error("Error adding staff:", error);
     }
@@ -496,10 +618,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   removeStaff: async (id) => {
     try {
       await deleteDoc(doc(db, "staff", id));
-
-      set((state) => ({
-        staff: state.staff.filter((s) => s.id !== id),
-      }));
     } catch (error) {
       console.error("Error removing staff:", error);
     }

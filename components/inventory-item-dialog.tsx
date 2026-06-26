@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppStore } from "@/lib/store";
-import type { Ingredient } from "@/lib/types";
+import type { Ingredient, IngredientUnit } from "@/lib/types";
 
 interface InventoryItemDialogProps {
   open: boolean;
@@ -34,7 +34,17 @@ export function InventoryItemDialog({
   editItem,
 }: InventoryItemDialogProps) {
   const { addIngredient, updateIngredient } = useAppStore();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    category: "produce" | "meat" | "dairy" | "grains" | "spices" | "beverages" | "other";
+    stock: number;
+    unit: IngredientUnit;
+    par: number;
+    reorderLevel: number;
+    costPerUnit: number;
+    supplier: string;
+    lastRestocked: string;
+  }>({
     name: editItem?.name || "",
     category: editItem?.category || "produce",
     stock: editItem?.stock || 0,
@@ -43,6 +53,7 @@ export function InventoryItemDialog({
     reorderLevel: editItem?.reorderLevel || 10,
     costPerUnit: editItem?.costPerUnit || 0,
     supplier: editItem?.supplier || "",
+    lastRestocked: editItem?.lastRestocked || new Date().toISOString(),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -138,14 +149,24 @@ export function InventoryItemDialog({
 
               <div className="grid gap-2">
                 <Label htmlFor="unit">Unit</Label>
-                <Input
-                  id="unit"
+                <Select
                   value={formData.unit}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, unit: e.target.value }))
+                  onValueChange={(value: IngredientUnit) =>
+                    setFormData((prev) => ({ ...prev, unit: value }))
                   }
-                  placeholder="e.g. lbs, pcs"
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="kg">kg</SelectItem>
+                    <SelectItem value="g">g</SelectItem>
+                    <SelectItem value="l">l</SelectItem>
+                    <SelectItem value="ml">ml</SelectItem>
+                    <SelectItem value="pcs">pcs</SelectItem>
+                    <SelectItem value="pack">pack</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid gap-2">
