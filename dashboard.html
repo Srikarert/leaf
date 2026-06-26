@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DineFlow OPS | Operations Hub — Urban Spice Kitchen</title>
+<meta name="description" content="Live operations dashboard for Urban Spice Kitchen — revenue, orders, tables and activity feed."/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  body { font-family: 'Space Grotesk', sans-serif; background-color: #131313; color: #e5e2e1; overflow-x: hidden; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .glass-card { background: rgba(26, 26, 28, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); }
+  .status-pulse { animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  @keyframes pulse-border { 0%, 100% { border-color: rgba(255, 184, 0, 0.3); } 50% { border-color: rgba(255, 184, 0, 0.8); } }
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #353534; border-radius: 10px; }
+  .nav-active { background: rgba(255,107,0,0.15); color: #ffb693; border-right: 3px solid #ff6b00; transform: translateX(4px); }
+  .nav-item { transition: all 0.2s; }
+  .nav-item:hover { background: rgba(255,255,255,0.05); }
+</style>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: { extend: {
+      colors: {
+        "on-surface-variant":"#e2bfb0","surface-bright":"#3a3939","status-delayed":"#F43F5E",
+        "surface-glass":"rgba(26,26,28,0.7)","on-primary":"#561f00","inverse-surface":"#e5e2e1",
+        "on-tertiary":"#303032","success-emerald":"#10B981","secondary":"#ffdb9d","outline":"#a98a7d",
+        "status-preparing":"#FFB800","surface-container":"#201f1f","on-background":"#e5e2e1",
+        "surface-container-lowest":"#0e0e0e","secondary-container":"#feb700","surface-container-low":"#1c1b1b",
+        "surface-tint":"#ffb693","status-ready":"#10B981","surface-container-highest":"#353534",
+        "background":"#131313","on-primary-container":"#572000","outline-variant":"#5a4136",
+        "tertiary":"#c8c6c8","status-occupied":"#3B82F6","on-secondary-container":"#6b4b00",
+        "surface-variant":"#353534","surface-dim":"#131313","alert-rose":"#F43F5E","primary":"#ffb693",
+        "surface":"#131313","tertiary-container":"#9a989b","primary-container":"#ff6b00",
+        "error-container":"#93000a","surface-container-high":"#2a2a2a","error":"#ffb4ab",
+        "on-surface":"#e5e2e1","on-tertiary-container":"#313133","on-secondary":"#412d00"
+      },
+      borderRadius: { "DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem" },
+      spacing: { "margin-desktop":"32px","margin-mobile":"16px","gutter":"16px","unit":"4px","container-max":"1440px" },
+      fontFamily: { "title-md":["Space Grotesk"],"label-caps":["Space Grotesk"],"display-lg":["Space Grotesk"],"headline-lg":["Space Grotesk"],"body-sm":["Space Grotesk"],"body-lg":["Space Grotesk"],"mono-data":["Space Grotesk"] },
+      fontSize: {
+        "title-md":["20px",{"lineHeight":"28px","fontWeight":"500"}],
+        "label-caps":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"700"}],
+        "display-lg":["48px",{"lineHeight":"56px","letterSpacing":"-0.02em","fontWeight":"700"}],
+        "headline-lg":["32px",{"lineHeight":"40px","letterSpacing":"-0.01em","fontWeight":"600"}],
+        "body-sm":["14px",{"lineHeight":"20px","fontWeight":"400"}],
+        "body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],
+        "mono-data":["14px",{"lineHeight":"20px","letterSpacing":"0.02em","fontWeight":"500"}]
+      }
+    }}
+  }
+</script>
+</head>
+<body class="bg-background selection:bg-primary-container selection:text-on-primary-container">
+
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full flex justify-between items-center px-8 h-16 bg-surface-glass backdrop-blur-xl border-b border-white/10 z-50">
+  <div class="flex items-center gap-8">
+    <a href="index.html" class="text-title-md font-title-md font-bold text-primary-container tracking-tight hover:opacity-80 transition-opacity">Urban Spice Kitchen</a>
+    <div class="hidden md:flex gap-6">
+      <a class="text-label-caps font-label-caps text-primary border-b-2 border-primary pb-1" href="dashboard.html">Dashboard</a>
+      <a class="text-label-caps font-label-caps text-on-surface-variant hover:text-on-surface transition-colors" href="kitchen.html">Kitchen Ops</a>
+      <a class="text-label-caps font-label-caps text-on-surface-variant hover:text-on-surface transition-colors" href="waiter.html">Floor Plan</a>
+    </div>
+  </div>
+  <div class="flex items-center gap-4">
+    <div class="bg-surface-container-highest px-4 py-1.5 flex items-center gap-2 rounded-lg">
+      <span class="material-symbols-outlined text-primary text-[18px]">search</span>
+      <input class="bg-transparent border-none focus:ring-0 text-body-sm text-on-surface placeholder-on-surface-variant w-48 outline-none" placeholder="Search orders, tables..." type="text"/>
+    </div>
+    <div class="flex items-center gap-3">
+      <button class="p-2 hover:bg-white/5 transition-colors rounded-full active:scale-95">
+        <span class="material-symbols-outlined text-on-surface-variant">inventory_2</span>
+      </button>
+      <button class="p-2 hover:bg-white/5 transition-colors rounded-full relative active:scale-95">
+        <span class="material-symbols-outlined text-on-surface-variant">notifications_active</span>
+        <span class="absolute top-2 right-2 w-2 h-2 bg-status-delayed rounded-full"></span>
+      </button>
+      <div class="h-8 w-[1px] bg-white/10 mx-1"></div>
+      <span class="text-label-caps font-label-caps text-on-surface-variant">Manager Profile</span>
+      <div class="w-8 h-8 rounded-lg overflow-hidden border border-white/10">
+        <img alt="Manager" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDC_zoKj98qLN0CM_qjkqlpvFBAdDuJ5xgDqypjGkXqRufDpaTGiFhm8Eo7YCS4L5-NJrdBwJucmdPqcGS_kIKur4SucC0zWnrtVPH7WA_0FLmTWtqiQSzdUBt0JKna45ugSVlF6b-z3ZDA3857U4fRAMrRB5C2LKcAbDaDV29qiM18qJR5mg4U1eXGhigyb7JEE3d2iaPVztedgb9qxCJqQUoWQdm1rRYSygjujwz_KB1nttEQiJ-X1fX7ZzYwdkb_H25lIfgzRBc"/>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-16 bottom-0 flex flex-col w-64 z-40 bg-surface-container-low border-r border-white/5">
+  <div class="p-6 border-b border-white/5">
+    <div class="flex items-center gap-3 mb-1">
+      <div class="w-8 h-8 bg-primary-container rounded flex items-center justify-center">
+        <span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings:'FILL' 1;">restaurant</span>
+      </div>
+      <div>
+        <h2 class="text-label-caps font-label-caps font-bold text-on-surface">DineFlow OPS</h2>
+        <p class="text-[10px] text-on-surface-variant uppercase tracking-widest">Technical Elegance</p>
+      </div>
+    </div>
+  </div>
+  <nav class="flex-1 px-2 py-4 space-y-1">
+    <a class="nav-active nav-item py-3 px-4 flex items-center gap-3 rounded" href="dashboard.html">
+      <span class="material-symbols-outlined">dashboard</span>
+      <span class="text-label-caps font-label-caps">Dashboard</span>
+    </a>
+    <a class="nav-item text-on-surface-variant py-3 px-4 flex items-center gap-3 rounded" href="#">
+      <span class="material-symbols-outlined">receipt_long</span>
+      <span class="text-label-caps font-label-caps">Live Orders</span>
+    </a>
+    <a class="nav-item text-on-surface-variant py-3 px-4 flex items-center gap-3 rounded" href="waiter.html">
+      <span class="material-symbols-outlined">table_restaurant</span>
+      <span class="text-label-caps font-label-caps">Table Map</span>
+    </a>
+    <a class="nav-item text-on-surface-variant py-3 px-4 flex items-center gap-3 rounded" href="#">
+      <span class="material-symbols-outlined">inventory</span>
+      <span class="text-label-caps font-label-caps">Inventory</span>
+    </a>
+    <a class="nav-item text-on-surface-variant py-3 px-4 flex items-center gap-3 rounded" href="#">
+      <span class="material-symbols-outlined">groups</span>
+      <span class="text-label-caps font-label-caps">Staff</span>
+    </a>
+    <a class="nav-item text-on-surface-variant py-3 px-4 flex items-center gap-3 rounded" href="#">
+      <span class="material-symbols-outlined">leaderboard</span>
+      <span class="text-label-caps font-label-caps">Analytics</span>
+    </a>
+  </nav>
+  <div class="mt-auto border-t border-white/5 p-4 space-y-1">
+    <button class="w-full bg-primary-container text-on-primary-container text-label-caps font-label-caps py-3 rounded-lg mb-4 hover:brightness-110 active:scale-[0.98] transition-all">Quick Action</button>
+    <a class="nav-item text-on-surface-variant py-2 px-4 flex items-center gap-3 rounded" href="delivery.html">
+      <span class="material-symbols-outlined text-[20px]">local_shipping</span>
+      <span class="text-label-caps font-label-caps">Delivery Hub</span>
+    </a>
+    <a class="nav-item text-on-surface-variant py-2 px-4 flex items-center gap-3 rounded" href="#">
+      <span class="material-symbols-outlined text-[20px]">settings</span>
+      <span class="text-label-caps font-label-caps">Settings</span>
+    </a>
+    <a class="nav-item text-on-surface-variant py-2 px-4 flex items-center gap-3 rounded" href="index.html">
+      <span class="material-symbols-outlined text-[20px]">logout</span>
+      <span class="text-label-caps font-label-caps">Logout</span>
+    </a>
+  </div>
+</aside>
+
+<!-- Main Content -->
+<main class="pl-64 pt-16 min-h-screen">
+  <div class="p-8 max-w-[1600px] mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-end mb-8">
+      <div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Operations Hub</h1>
+        <p class="text-body-lg text-on-surface-variant">Live overview for Urban Spice Kitchen • Night Shift</p>
+      </div>
+      <div class="flex gap-3">
+        <div class="bg-surface-container px-4 py-2 rounded flex flex-col items-end">
+          <span class="text-[10px] text-on-surface-variant uppercase font-bold">Kitchen Load</span>
+          <div class="flex items-center gap-2">
+            <span class="text-mono-data text-status-ready">Optimized</span>
+            <div class="w-12 h-1 bg-white/10 rounded-full overflow-hidden">
+              <div class="w-2/3 h-full bg-status-ready"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bento Grid -->
+    <div class="grid grid-cols-12 gap-6">
+
+      <!-- Revenue Chart -->
+      <div class="col-span-12 lg:col-span-8 glass-card rounded-xl p-6 relative overflow-hidden group">
+        <div class="flex justify-between items-start mb-8">
+          <div>
+            <h3 class="text-label-caps font-label-caps text-on-surface-variant mb-1">Live Revenue Trends</h3>
+            <span class="text-headline-lg font-headline-lg text-primary">$12,482.50</span>
+            <span class="ml-2 text-status-ready text-mono-data">↑ 12% vs last Friday</span>
+          </div>
+          <div class="flex gap-2">
+            <button class="px-3 py-1 bg-white/5 rounded text-label-caps text-on-surface">Live</button>
+            <button class="px-3 py-1 hover:bg-white/5 rounded text-label-caps text-on-surface-variant">H</button>
+            <button class="px-3 py-1 hover:bg-white/5 rounded text-label-caps text-on-surface-variant">D</button>
+          </div>
+        </div>
+        <div class="h-64 flex items-end justify-between gap-1">
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-1/3"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-1/2"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-2/3"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-3/4"></div>
+          <div class="flex-1 bg-status-preparing/60 hover:bg-status-preparing transition-all rounded-t h-full relative">
+            <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-status-preparing text-on-secondary px-2 py-0.5 rounded text-[10px] font-bold">Peak</div>
+          </div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-4/5"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-3/4"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-1/2"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-2/3"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-1/2"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-1/3"></div>
+          <div class="flex-1 bg-white/5 hover:bg-status-preparing/40 transition-all rounded-t h-1/4"></div>
+        </div>
+        <div class="absolute top-0 right-0 w-32 h-32 bg-status-preparing/5 blur-[80px] pointer-events-none"></div>
+      </div>
+
+      <!-- Table Occupancy -->
+      <div class="col-span-12 lg:col-span-4 glass-card rounded-xl p-6">
+        <h3 class="text-label-caps font-label-caps text-on-surface-variant mb-6">Table Map</h3>
+        <div class="grid grid-cols-3 gap-4">
+          <a href="waiter.html" class="aspect-square border border-status-occupied/40 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-status-occupied/10 transition-all">
+            <span class="text-mono-data text-status-occupied">T-01</span>
+            <span class="text-[10px] text-on-surface-variant">Occupied</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-white/10 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-all">
+            <span class="text-mono-data text-on-surface-variant">T-02</span>
+            <span class="text-[10px] text-on-surface-variant/40">Vacant</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-status-occupied/40 rounded flex flex-col items-center justify-center hover:bg-status-occupied/10 transition-all">
+            <span class="text-mono-data text-status-occupied">T-03</span>
+            <span class="text-[10px] text-on-surface-variant">Occupied</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-status-delayed/40 bg-status-delayed/5 rounded flex flex-col items-center justify-center hover:bg-status-delayed/10 transition-all">
+            <span class="text-mono-data text-status-delayed">T-04</span>
+            <span class="text-[10px] text-on-surface-variant">Payment</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-status-occupied/40 rounded flex flex-col items-center justify-center hover:bg-status-occupied/10 transition-all">
+            <span class="text-mono-data text-status-occupied">T-05</span>
+            <span class="text-[10px] text-on-surface-variant">Occupied</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-status-preparing/40 rounded flex flex-col items-center justify-center hover:bg-status-preparing/10 transition-all">
+            <span class="text-mono-data text-status-preparing">T-06</span>
+            <span class="text-[10px] text-on-surface-variant">Dessert</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-white/10 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-all">
+            <span class="text-mono-data text-on-surface-variant">T-07</span>
+            <span class="text-[10px] text-on-surface-variant/40">Vacant</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-white/10 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-all">
+            <span class="text-mono-data text-on-surface-variant">T-08</span>
+            <span class="text-[10px] text-on-surface-variant/40">Vacant</span>
+          </a>
+          <a href="waiter.html" class="aspect-square border border-status-occupied/40 rounded flex flex-col items-center justify-center hover:bg-status-occupied/10 transition-all">
+            <span class="text-mono-data text-status-occupied">T-09</span>
+            <span class="text-[10px] text-on-surface-variant">Occupied</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Active Orders Feed -->
+      <div class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-6">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-label-caps font-label-caps text-on-surface-variant">Live Orders</h3>
+          <span class="text-mono-data px-2 bg-primary-container/20 text-primary-container rounded">12 New</span>
+        </div>
+        <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+          <a href="kitchen.html" class="block p-4 border-l-2 border-status-preparing bg-white/5 rounded-r transition-transform hover:translate-x-1 cursor-pointer">
+            <div class="flex justify-between mb-2">
+              <span class="text-mono-data font-bold">#ORD-2849</span>
+              <span class="text-[10px] text-status-preparing uppercase font-bold animate-pulse">Preparing</span>
+            </div>
+            <p class="text-body-sm text-on-surface mb-1">2x Butter Chicken, 3x Garlic Naan</p>
+            <div class="flex justify-between items-center text-[10px] text-on-surface-variant">
+              <span>Table 04 • Server: Raj</span>
+              <span>8m remaining</span>
+            </div>
+          </a>
+          <a href="kitchen.html" class="block p-4 border-l-2 border-status-ready bg-white/5 rounded-r transition-transform hover:translate-x-1 cursor-pointer">
+            <div class="flex justify-between mb-2">
+              <span class="text-mono-data font-bold">#ORD-2848</span>
+              <span class="text-[10px] text-status-ready uppercase font-bold">Ready</span>
+            </div>
+            <p class="text-body-sm text-on-surface mb-1">1x Paneer Tikka, 1x Dal Makhani</p>
+            <div class="flex justify-between items-center text-[10px] text-on-surface-variant">
+              <span>Table 01 • Server: Sarah</span>
+              <span>Pending Pickup</span>
+            </div>
+          </a>
+          <a href="kitchen.html" class="block p-4 border-l-2 border-status-delayed bg-white/5 rounded-r transition-transform hover:translate-x-1 cursor-pointer">
+            <div class="flex justify-between mb-2">
+              <span class="text-mono-data font-bold">#ORD-2845</span>
+              <span class="text-[10px] text-status-delayed uppercase font-bold flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px]">warning</span> Delayed
+              </span>
+            </div>
+            <p class="text-body-sm text-on-surface mb-1">4x Lamb Rogan Josh, 1x Biryani</p>
+            <div class="flex justify-between items-center text-[10px] text-on-surface-variant">
+              <span>Table 09 • Server: Mike</span>
+              <span class="text-status-delayed">+4m overdue</span>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <!-- Inventory Alerts -->
+      <div class="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-xl p-6">
+        <h3 class="text-label-caps font-label-caps text-on-surface-variant mb-6">Low Stock Inventory</h3>
+        <div class="space-y-6">
+          <div>
+            <div class="flex justify-between text-body-sm mb-2">
+              <span class="text-on-surface">Basmati Rice</span>
+              <span class="text-status-delayed text-mono-data">12kg / 100kg</span>
+            </div>
+            <div class="h-1 bg-white/10 rounded-full overflow-hidden">
+              <div class="w-[12%] h-full bg-status-delayed"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-body-sm mb-2">
+              <span class="text-on-surface">Cumin Seeds</span>
+              <span class="text-status-preparing text-mono-data">2.4kg / 10kg</span>
+            </div>
+            <div class="h-1 bg-white/10 rounded-full overflow-hidden">
+              <div class="w-[24%] h-full bg-status-preparing"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-body-sm mb-2">
+              <span class="text-on-surface">Heavy Cream</span>
+              <span class="text-status-preparing text-mono-data">8L / 40L</span>
+            </div>
+            <div class="h-1 bg-white/10 rounded-full overflow-hidden">
+              <div class="w-[20%] h-full bg-status-preparing"></div>
+            </div>
+          </div>
+          <div class="pt-4 mt-4 border-t border-white/5">
+            <button class="w-full flex items-center justify-between text-label-caps text-primary hover:gap-2 transition-all group">
+              Order Supplies
+              <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Activity Feed -->
+      <div class="col-span-12 lg:col-span-4 glass-card rounded-xl p-6">
+        <h3 class="text-label-caps font-label-caps text-on-surface-variant mb-6">Live Activity Feed</h3>
+        <div id="activity-feed" class="relative space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[1px] before:bg-white/10">
+          <div class="relative pl-10">
+            <div class="absolute left-0 top-0 w-5 h-5 bg-status-ready rounded-full border-4 border-surface-container flex items-center justify-center shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+            <span class="text-[10px] text-on-surface-variant block mb-1">10:42 PM</span>
+            <p class="text-body-sm text-on-surface"><span class="text-primary font-bold">Chef Kumar</span> marked Order #2848 ready for pickup.</p>
+          </div>
+          <div class="relative pl-10">
+            <div class="absolute left-0 top-0 w-5 h-5 bg-status-occupied rounded-full border-4 border-surface-container flex items-center justify-center"></div>
+            <span class="text-[10px] text-on-surface-variant block mb-1">10:38 PM</span>
+            <p class="text-body-sm text-on-surface"><span class="text-primary font-bold">Table 07</span> has been cleared and reset.</p>
+          </div>
+          <div class="relative pl-10">
+            <div class="absolute left-0 top-0 w-5 h-5 bg-status-preparing rounded-full border-4 border-surface-container flex items-center justify-center shadow-[0_0_10px_rgba(255,184,0,0.3)]"></div>
+            <span class="text-[10px] text-on-surface-variant block mb-1">10:35 PM</span>
+            <p class="text-body-sm text-on-surface"><span class="text-primary font-bold">POS Main</span> New order received: Takeaway #2851.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Selling Dishes -->
+      <div class="col-span-12 glass-card rounded-xl p-6 overflow-hidden">
+        <h3 class="text-label-caps font-label-caps text-on-surface-variant mb-6">Top Selling Dishes (Tonight)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="flex items-center gap-4 bg-white/5 p-4 rounded-lg group hover:bg-white/10 transition-all">
+            <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 grayscale group-hover:grayscale-0 transition-all duration-500">
+              <img alt="Butter Chicken" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbzaGoTdSp_ZWNJe0zElFZx_GgTcZEFAALjduEqCtFyP1M9tK_VBDw7H9de1vcoBpROwKaJqY7_4SrN_HunjWUL6s7-YGBXulSUM6VgakaqB6YFQHLaVolKKZxY20JOC2pfMIWrNlAmtxdCTvtem7qyWqvQCk0Ki_y8UvNKmzd5TSyyCcgqs-G7FsRizW37veNmnATmSXXkuhKP4LhsaSy96_sqph8tPKKscs6INMqsq__snT2MWqc57k89-jR6L6LIOJvwX6TSDQ"/>
+            </div>
+            <div>
+              <h4 class="text-body-sm font-bold text-on-surface">Butter Chicken</h4>
+              <p class="text-mono-data text-primary">48 units</p>
+              <div class="w-24 h-1 bg-white/10 rounded-full mt-1">
+                <div class="w-full h-full bg-primary shadow-[0_0_8px_rgba(255,182,147,0.4)]"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 bg-white/5 p-4 rounded-lg group hover:bg-white/10 transition-all">
+            <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 grayscale group-hover:grayscale-0 transition-all duration-500">
+              <img alt="Paneer Tikka" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwfwXGLCddG4kZ6PGtChu-dj4iybblu91oLdr_8ozD4qXbd0tFGHRTXDEcQwJt9HWez3cinH0zLaHnnrJplzmNai2V_8CNyYCYtJyJ3Kt0vExwplg104q2T5fcsvEN53-1KXLR5TOF-azGphKrNINTUPtTInEgcRX1tmgUQ7ss4PtaifTq1bAKYVVVB6efkm1gk65PYf3cV4nRuHdiEL0WL19PKJ8PjbTD9dfIH7YxZAU4ud7InCfrjqDxNmzVXil9mr2n8DE0FPQ"/>
+            </div>
+            <div>
+              <h4 class="text-body-sm font-bold text-on-surface">Paneer Tikka</h4>
+              <p class="text-mono-data text-primary">36 units</p>
+              <div class="w-24 h-1 bg-white/10 rounded-full mt-1">
+                <div class="w-[75%] h-full bg-primary shadow-[0_0_8px_rgba(255,182,147,0.4)]"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 bg-white/5 p-4 rounded-lg group hover:bg-white/10 transition-all">
+            <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 grayscale group-hover:grayscale-0 transition-all duration-500">
+              <img alt="Dal Makhani" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9lDrwuesPP2LUFr0BoZYx1nlL0FOHoVMpcTJ53P57UPRgHUH-8qdBLsBJZJBlv3zvb0ernnRblk_5H10QNBpJ7E3stx9gIL0dO1_cY2e2gYafA_ua8ElNj6e9uyX8VXF8MMTqp35Yhm7_HIMTZCRwalxM6mOvrNy_fUth3SULL1aJusc1UDpd687P29hw8pXU0EsbxJxvgMlqSqTdsDuXgRFAaKv7YbRe3Kl5YJDZktynDVCK8sa5cw8Y9FXb29lBZBmjjg-11VY"/>
+            </div>
+            <div>
+              <h4 class="text-body-sm font-bold text-on-surface">Dal Makhani</h4>
+              <p class="text-mono-data text-primary">29 units</p>
+              <div class="w-24 h-1 bg-white/10 rounded-full mt-1">
+                <div class="w-[60%] h-full bg-primary shadow-[0_0_8px_rgba(255,182,147,0.4)]"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 bg-white/5 p-4 rounded-lg group hover:bg-white/10 transition-all">
+            <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 grayscale group-hover:grayscale-0 transition-all duration-500">
+              <img alt="Lamb Biryani" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2aUhdzWekLPcfSewEseCYFPtqDkDKAb53V-jMQB-fXeBDhaYkLPuhhIWzNrEjyujXXyAukbYANhcq05JWBPmuF3gqjRo-iGh7EUM1RG4p-PSRGKu9Kk0BWp3Yd82kq6AL62-I_T2agEGfQgRClumyFyQBL4azJonO5yrKANqqrqYhcwpJknGrS05dEQRwKLOjP8NDlT6z5lcK9wmXGKarIVzxcrwk-SF34XIaO4blvrsfbp4oV368NNurZt1roLq1eZvjCLWXUSE"/>
+            </div>
+            <div>
+              <h4 class="text-body-sm font-bold text-on-surface">Lamb Biryani</h4>
+              <p class="text-mono-data text-primary">24 units</p>
+              <div class="w-24 h-1 bg-white/10 rounded-full mt-1">
+                <div class="w-[50%] h-full bg-primary shadow-[0_0_8px_rgba(255,182,147,0.4)]"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- Mobile FAB -->
+<div class="fixed bottom-6 right-6 flex flex-col gap-3 md:hidden">
+  <button class="w-14 h-14 bg-primary-container rounded-full flex items-center justify-center text-on-primary-container shadow-xl">
+    <span class="material-symbols-outlined">add</span>
+  </button>
+</div>
+
+<script>
+  const activityContainer = document.getElementById('activity-feed');
+  const activities = [
+    "Order #2852: 1x Garlic Naan added to table 03.",
+    "Kitchen: Station 2 reports 95% capacity.",
+    "Waitstaff: Sarah started a break.",
+    "Revenue: Hourly target reached (112%).",
+    "New delivery order #2860 received.",
+    "Table 05 VIP party requested the bill."
+  ];
+  setInterval(() => {
+    const randomActivity = activities[Math.floor(Math.random() * activities.length)];
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newEl = document.createElement('div');
+    newEl.className = 'relative pl-10 opacity-0 translate-y-2 transition-all duration-700';
+    newEl.innerHTML = `
+      <div class="absolute left-0 top-0 w-5 h-5 bg-primary rounded-full border-4 border-surface-container flex items-center justify-center"></div>
+      <span class="text-[10px] text-on-surface-variant block mb-1">${timestamp}</span>
+      <p class="text-body-sm text-on-surface">${randomActivity}</p>
+    `;
+    activityContainer.prepend(newEl);
+    setTimeout(() => { newEl.classList.remove('opacity-0', 'translate-y-2'); }, 100);
+    if (activityContainer.children.length > 6) { activityContainer.removeChild(activityContainer.lastElementChild); }
+  }, 8000);
+</script>
+</body></html>
