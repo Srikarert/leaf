@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Award, Mail, Phone, Search, Star, Users } from "lucide-react";
+import { Award, Mail, Search, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/lib/store";
 import { formatCurrency, timeAgo } from "@/lib/format";
-import { menuItems } from "@/lib/mock-data";
 
 export default function CustomersPage() {
   const customers = useAppStore((s) => s.customers);
+  const menuItems = useAppStore((s) => s.menuItems);
   const [query, setQuery] = useState("");
 
   const filtered = customers
