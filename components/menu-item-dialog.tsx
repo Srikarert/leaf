@@ -22,7 +22,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAppStore } from "@/lib/store";
-import type { MenuItem, Category } from "@/lib/types";
+import type { MenuItem } from "@/lib/types";
+
+type MenuItemFormData = Omit<MenuItem, "id" | "soldToday" | "soldWeek">;
 
 interface MenuItemDialogProps {
   open: boolean;
@@ -35,11 +37,11 @@ export function MenuItemDialog({
   onOpenChange,
   editItem,
 }: MenuItemDialogProps) {
-  const { menuItems, categories, addMenuItem, updateMenuItem } = useAppStore();
-  const [formData, setFormData] = useState({
+  const { categories, addMenuItem, updateMenuItem } = useAppStore();
+  const [formData, setFormData] = useState<MenuItemFormData>({
     name: editItem?.name || "",
     description: editItem?.description || "",
-    categoryId: editItem?.categoryId || categories[0]?.id,
+    categoryId: editItem?.categoryId || categories[0]?.id || "",
     price: editItem?.price || 0,
     cost: editItem?.cost || 0,
     prepTime: editItem?.prepTime || 10,
@@ -47,6 +49,7 @@ export function MenuItemDialog({
     vegetarian: editItem?.vegetarian || false,
     spicy: editItem?.spicy || 0,
     popular: editItem?.popular || false,
+    ingredients: editItem?.ingredients || [],
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -218,7 +221,10 @@ export function MenuItemDialog({
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      spicy: parseInt(e.target.value) || 0,
+                      spicy: Math.min(
+                        3,
+                        Math.max(0, parseInt(e.target.value, 10) || 0)
+                      ) as MenuItem["spicy"],
                     }))
                   }
                 />

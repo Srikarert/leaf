@@ -509,7 +509,6 @@ const minimalData = {
     },
   ],
   orders: [],
-  customers: [],
   deliveries: [],
   activity: [],
   reservations: [],
