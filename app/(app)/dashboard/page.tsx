@@ -13,6 +13,8 @@ import {
   Users,
   UtensilsCrossed,
   Wallet,
+  TableProperties,
+  ListOrdered,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,6 +77,33 @@ export default function DashboardPage() {
           </>
         }
       />
+
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Button asChild variant="outline" className="h-auto flex-col gap-1.5 py-4 text-center">
+          <Link href="/waiter">
+            <UtensilsCrossed className="h-5 w-5" />
+            <span className="text-xs font-medium">Waiter View</span>
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="h-auto flex-col gap-1.5 py-4 text-center">
+          <Link href="/kitchen">
+            <ChefHat className="h-5 w-5" />
+            <span className="text-xs font-medium">Kitchen</span>
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="h-auto flex-col gap-1.5 py-4 text-center">
+          <Link href="/orders">
+            <ListOrdered className="h-5 w-5" />
+            <span className="text-xs font-medium">Orders</span>
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="h-auto flex-col gap-1.5 py-4 text-center">
+          <Link href="/tables">
+            <TableProperties className="h-5 w-5" />
+            <span className="text-xs font-medium">Tables</span>
+          </Link>
+        </Button>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

@@ -59,9 +59,9 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           <span className="font-mono tabular-nums text-muted-foreground">{now}</span>
         </div>
 
-        <Button size="sm" className="hidden sm:inline-flex">
+        <Button size="sm" className="sm:inline-flex">
           <Plus className="h-4 w-4" />
-          New order
+          <span className="hidden sm:inline">New order</span>
         </Button>
 
         <DropdownMenu>

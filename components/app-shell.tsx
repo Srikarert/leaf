@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <SidebarNav pendingOrders={pendingOrders} />
+            <SidebarNav pendingOrders={pendingOrders} variant="mobile" />
           </div>
         </div>
       )}

@@ -45,15 +45,16 @@ const bottomItems = [
 
 interface SidebarNavProps {
   pendingOrders?: number;
+  variant?: "desktop" | "mobile";
 }
 
-export function SidebarNav({ pendingOrders = 0 }: SidebarNavProps) {
+export function SidebarNav({ pendingOrders = 0, variant = "desktop" }: SidebarNavProps) {
   const pathname = usePathname();
   const user = useAppStore((s) => s.user);
   const allowedRoles = (item: typeof items[number]) => item.role?.includes(user.role) ?? true;
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex">
+    <aside className={variant === "mobile" ? "flex w-64 flex-col bg-sidebar text-sidebar-foreground" : "hidden w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex"}>
       <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <UtensilsCrossed className="h-4 w-4" />
